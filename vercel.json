@@ -6,7 +6,8 @@
       "use": "@vercel/python",
       "config": {
         "pip": true,
-        "maxLambdaSize": "15mb"
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.10"
       }
     }
   ],

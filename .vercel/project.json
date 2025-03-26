@@ -1,0 +1,15 @@
+{
+  "projectId": "prj_123456789",
+  "orgId": "team_123456789",
+  "settings": {
+    "framework": "flask",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "18.x",
+    "runtime": "python3.10"
+  }
+} 
