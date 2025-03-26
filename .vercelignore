@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+*.log
+.git/
+.gitignore
+app.py.old
+app.py.bak
+test_*.py 
