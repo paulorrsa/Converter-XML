@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "wsgi.py",
+      "src": "index.py",
       "use": "@vercel/python@3.1.39",
       "config": {
         "runtime": "python3.9",
@@ -14,7 +14,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/wsgi.py"
+      "dest": "/index.py"
     }
   ]
 } 
