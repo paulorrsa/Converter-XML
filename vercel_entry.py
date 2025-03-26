@@ -9,11 +9,12 @@ logger = logging.getLogger(__name__)
 
 # Lista de pacotes críticos que precisamos garantir que estão instalados
 REQUIRED_PACKAGES = [
-    "setuptools>=65.5.0",
-    "wheel>=0.38.4",
-    "pandas==1.5.3",
-    "numpy==1.23.5",
-    "xlsxwriter==3.1.2"
+    "setuptools>=59.0.0",
+    "wheel>=0.37.0",
+    "distlib>=0.3.4",
+    "pandas==1.3.5",
+    "numpy==1.21.6",
+    "xlsxwriter==3.0.3"
 ]
 
 # Verificar se estamos em um ambiente Vercel
@@ -24,15 +25,16 @@ def is_vercel_env():
 def ensure_packages():
     logger.info("Verificando pacotes necessários...")
     try:
-        # Primeiro instalar setuptools e wheel
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "setuptools>=65.5.0", "wheel>=0.38.4"])
-        logger.info("Setuptools e wheel instalados com sucesso")
+        # Primeiro instalar setuptools, wheel e distlib
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "setuptools>=59.0.0", "wheel>=0.37.0", "distlib>=0.3.4"])
+        logger.info("Setuptools, wheel e distlib instalados com sucesso")
         
         for package in REQUIRED_PACKAGES:
             try:
                 # Verificar se já está instalado
-                package_name = package.split('==')[0]
-                if package_name not in ["setuptools", "wheel"]:  # Pular os que já instalamos
+                package_name = package.split('==')[0].split('>=')[0]
+                if package_name not in ["setuptools", "wheel", "distlib"]:  # Pular os que já instalamos
                     try:
                         __import__(package_name.lower())
                         logger.info(f"Pacote {package_name} já está instalado")

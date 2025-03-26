@@ -10,4 +10,6 @@ env/
 app.py.old
 app.py.bak
 test_*.py
-app/uploads/*.pdf 
+app/uploads/*.pdf
+!runtime.txt
+!.python-version 
