@@ -15,7 +15,16 @@ import tempfile
 
 app = Flask(__name__, template_folder='app/templates', static_folder='app/static')
 app.config['SECRET_KEY'] = 'fsist-secret-key'
-app.config['UPLOAD_FOLDER'] = 'app/uploads'
+
+# Função para verificar se estamos no ambiente Vercel
+def is_vercel_env():
+    return 'VERCEL' in os.environ
+
+# Define a pasta de upload baseada no ambiente (Vercel ou local)
+if is_vercel_env():
+    app.config['UPLOAD_FOLDER'] = '/tmp'
+else:
+    app.config['UPLOAD_FOLDER'] = 'app/uploads'
 
 # Ensure the upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -789,11 +798,60 @@ def converter_xml_para_danfe():
 @app.route('/visualizar-pdf/<filename>')
 def visualizar_pdf(filename):
     """Retorna o PDF para visualização no navegador."""
-    return send_from_directory(
-        app.config['UPLOAD_FOLDER'],
-        filename,
-        mimetype='application/pdf'
-    )
+    processed_files = session.get('processed_files', [])
+    
+    if is_vercel_env():
+        # No Vercel, temos que regenerar o PDF
+        # Encontra o arquivo correspondente ao filename
+        file_data = next((f for f in processed_files if f.get('pdf_path') == filename), None)
+        
+        if not file_data:
+            flash('Arquivo não encontrado', 'error')
+            return redirect(url_for('converter_xml_para_danfe'))
+        
+        try:
+            # Recupera o XML
+            temp_path = file_data.get('temp_path')
+            
+            if not temp_path or not os.path.exists(temp_path):
+                flash('Arquivo XML não encontrado', 'error')
+                return redirect(url_for('converter_xml_para_danfe'))
+            
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                xml_content = f.read()
+            
+            # Gera o PDF
+            success, result = gerar_danfe_api(xml_content)
+            
+            if success:
+                # Decodifica o PDF
+                pdf_content = base64.b64decode(result)
+                
+                # Cria um stream de memória
+                pdf_stream = BytesIO(pdf_content)
+                pdf_stream.seek(0)
+                
+                # Retorna o PDF para visualização no navegador
+                return send_file(
+                    pdf_stream,
+                    mimetype='application/pdf',
+                    as_attachment=False,
+                    download_name=filename
+                )
+            else:
+                flash(f'Erro ao gerar PDF: {result}', 'error')
+                return redirect(url_for('converter_xml_para_danfe'))
+                
+        except Exception as e:
+            flash(f'Erro ao gerar PDF: {str(e)}', 'error')
+            return redirect(url_for('converter_xml_para_danfe'))
+    else:
+        # Em ambiente local, usamos o sistema de arquivos
+        return send_from_directory(
+            app.config['UPLOAD_FOLDER'],
+            filename,
+            mimetype='application/pdf'
+        )
 
 @app.route('/gerar-pdf/<chave>')
 def gerar_pdf(chave):
@@ -824,28 +882,55 @@ def gerar_pdf(chave):
         success, result = gerar_danfe_api(xml_content)
         
         if success:
-            # Salva o PDF
+            # Decodifica o PDF do base64
+            pdf_content = base64.b64decode(result)
+            
+            # Define o nome do arquivo
             pdf_filename = f"{chave}.pdf"
-            pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename)
             
-            # Garantir que o diretório existe
-            os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-            
-            with open(pdf_path, 'wb') as f:
-                f.write(base64.b64decode(result))
-            
-            # Atualiza o status do arquivo na sessão
-            file_data['pdf_gerado'] = True
-            file_data['pdf_path'] = pdf_filename
-            processed_files[file_index] = file_data  # Atualiza o arquivo na lista
-            session['processed_files'] = processed_files  # Atualiza a sessão
-            session.modified = True
-            
-            # Retorna o PDF diretamente para visualização no navegador
-            return send_file(
-                pdf_path,
-                mimetype='application/pdf'
-            )
+            if is_vercel_env():
+                # No Vercel, usamos BytesIO para manter o PDF em memória
+                pdf_stream = BytesIO(pdf_content)
+                
+                # Atualiza o status do arquivo na sessão
+                file_data['pdf_gerado'] = True
+                file_data['pdf_path'] = pdf_filename
+                processed_files[file_index] = file_data
+                session['processed_files'] = processed_files
+                session.modified = True
+                
+                # Configura o stream para ser lido do início
+                pdf_stream.seek(0)
+                
+                # Retorna o PDF diretamente da memória
+                return send_file(
+                    pdf_stream,
+                    mimetype='application/pdf',
+                    as_attachment=False,
+                    download_name=pdf_filename
+                )
+            else:
+                # Em ambiente local, salvamos no sistema de arquivos
+                pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename)
+                
+                # Garantir que o diretório existe
+                os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+                
+                with open(pdf_path, 'wb') as f:
+                    f.write(pdf_content)
+                
+                # Atualiza o status do arquivo na sessão
+                file_data['pdf_gerado'] = True
+                file_data['pdf_path'] = pdf_filename
+                processed_files[file_index] = file_data
+                session['processed_files'] = processed_files
+                session.modified = True
+                
+                # Retorna o PDF do sistema de arquivos
+                return send_file(
+                    pdf_path,
+                    mimetype='application/pdf'
+                )
         else:
             flash(f'Erro ao gerar PDF: {result}', 'error')
             return redirect(url_for('converter_xml_para_danfe'))
@@ -866,7 +951,56 @@ def gerar_pdf(chave):
 @app.route('/download-pdf/<filename>')
 def download_pdf(filename):
     """Download de um PDF específico."""
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
+    processed_files = session.get('processed_files', [])
+    
+    if is_vercel_env():
+        # No Vercel, temos que regenerar o PDF
+        # Encontra o arquivo correspondente ao filename
+        file_data = next((f for f in processed_files if f.get('pdf_path') == filename), None)
+        
+        if not file_data:
+            flash('Arquivo não encontrado', 'error')
+            return redirect(url_for('converter_xml_para_danfe'))
+        
+        try:
+            # Recupera o XML
+            temp_path = file_data.get('temp_path')
+            
+            if not temp_path or not os.path.exists(temp_path):
+                flash('Arquivo XML não encontrado', 'error')
+                return redirect(url_for('converter_xml_para_danfe'))
+            
+            with open(temp_path, 'r', encoding='utf-8') as f:
+                xml_content = f.read()
+            
+            # Gera o PDF
+            success, result = gerar_danfe_api(xml_content)
+            
+            if success:
+                # Decodifica o PDF
+                pdf_content = base64.b64decode(result)
+                
+                # Cria um stream de memória
+                pdf_stream = BytesIO(pdf_content)
+                pdf_stream.seek(0)
+                
+                # Retorna o PDF como download
+                return send_file(
+                    pdf_stream,
+                    mimetype='application/pdf',
+                    as_attachment=True,
+                    download_name=filename
+                )
+            else:
+                flash(f'Erro ao gerar PDF: {result}', 'error')
+                return redirect(url_for('converter_xml_para_danfe'))
+                
+        except Exception as e:
+            flash(f'Erro ao gerar PDF: {str(e)}', 'error')
+            return redirect(url_for('converter_xml_para_danfe'))
+    else:
+        # Em ambiente local, usamos o sistema de arquivos
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
 
 @app.route('/download-all-pdfs')
 def download_all_pdfs():
@@ -880,18 +1014,39 @@ def download_all_pdfs():
     with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
         for file in processed_files:
             if file.get('pdf_gerado') and file.get('pdf_path'):
-                pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], file['pdf_path'])
-                if os.path.exists(pdf_path):
-                    # Usar o nome do arquivo como nome no ZIP
-                    arcname = os.path.basename(pdf_path)
-                    zf.write(pdf_path, arcname)
+                pdf_filename = file['pdf_path']
+                
+                if is_vercel_env():
+                    # No Vercel, temos que regenerar cada PDF
+                    try:
+                        # Recupera o XML
+                        temp_path = file.get('temp_path')
+                        
+                        if temp_path and os.path.exists(temp_path):
+                            with open(temp_path, 'r', encoding='utf-8') as f:
+                                xml_content = f.read()
+                            
+                            # Gera o PDF novamente
+                            success, result = gerar_danfe_api(xml_content)
+                            
+                            if success:
+                                # Adiciona o PDF ao ZIP a partir do conteúdo em memória
+                                pdf_content = base64.b64decode(result)
+                                zf.writestr(pdf_filename, pdf_content)
+                    except Exception as e:
+                        flash(f"Erro ao gerar PDF {pdf_filename}: {str(e)}", "error")
+                else:
+                    # Em ambiente local, lemos do sistema de arquivos
+                    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename)
+                    if os.path.exists(pdf_path):
+                        # Usar o nome do arquivo como nome no ZIP
+                        arcname = os.path.basename(pdf_path)
+                        zf.write(pdf_path, arcname)
     
-    # Verificar se algum arquivo foi adicionado
-    if memory_file.tell() == 0:
-        flash('Nenhum PDF disponível para download', 'warning')
-        return redirect(url_for('converter_xml_para_danfe'))
-    
+    # Configurar o ponteiro de leitura para o início
     memory_file.seek(0)
+    
+    # Retornar o arquivo ZIP como resposta
     return send_file(
         memory_file,
         mimetype='application/zip',
