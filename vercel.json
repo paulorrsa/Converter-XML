@@ -3,11 +3,7 @@
   "builds": [
     {
       "src": "index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "15mb",
-        "installCommand": "pip install --upgrade pip && pip install setuptools wheel && pip install -r requirements-vercel.txt"
-      }
+      "use": "@vercel/python"
     }
   ],
   "routes": [
