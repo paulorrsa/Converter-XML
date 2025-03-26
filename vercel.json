@@ -1,17 +1,33 @@
 {
   "version": 2,
+  "functions": {
+    "api/*.py": {
+      "runtime": "python3.10"
+    }
+  },
   "builds": [
     {
       "src": "app.py",
       "use": "@vercel/python",
       "config": {
-        "pip": true,
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.10"
+      }
+    },
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
         "maxLambdaSize": "15mb",
         "runtime": "python3.10"
       }
     }
   ],
   "routes": [
+    {
+      "src": "/api(/?.*)",
+      "dest": "api/index.py"
+    },
     {
       "src": "/(.*)",
       "dest": "app.py"

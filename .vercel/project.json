@@ -1,10 +1,10 @@
 {
-  "projectId": "prj_123456789",
-  "orgId": "team_123456789",
+  "projectId": "prj_vXRfVSlJNAB8JyvDlGJ0IEpGwbAo",
+  "orgId": "team_QkHijTRAnYrp2cIMPMdwv30h",
   "settings": {
     "framework": "flask",
     "devCommand": null,
-    "installCommand": null,
+    "installCommand": "pip install setuptools wheel && pip install -r requirements.txt",
     "buildCommand": null,
     "outputDirectory": null,
     "rootDirectory": null,
