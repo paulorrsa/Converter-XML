@@ -203,190 +203,246 @@ def download_relatorio():
 
 def gerar_excel(notas, incluir_itens):
     """Gera um arquivo Excel com os dados das notas"""
+    # Criar DataFrames para as notas e itens - definir aqui para estar acessível no bloco try/except
+    dados_notas = []
+    dados_itens = []
+    
+    # Preencher os dados das notas e itens antes de qualquer processamento
+    for nota in notas:
+        # Dados da nota
+        dados_notas.append({
+            'Tipo': nota['tipo'],
+            'Chave': nota['chave'],
+            'Número': nota['numero'],
+            'Série': nota['serie'],
+            'Data Emissão': nota['data_emissao'],
+            'Emitente': nota['emitente']['razao_social'],
+            'CNPJ Emitente': nota['emitente']['cnpj_cpf'],
+            'Destinatário': nota['destinatario']['razao_social'],
+            'CNPJ Destinatário': nota['destinatario']['cnpj_cpf'],
+            'Valor Total': nota['valor_total'],
+            'Forma Pagamento': nota['pagamento']['forma'],
+            'Frete': nota['frete']
+        })
+        
+        # Dados dos itens (se solicitado)
+        if incluir_itens:
+            for item in nota['itens']:
+                dados_itens.append({
+                    'Tipo Nota': nota['tipo'],
+                    'Chave Nota': nota['chave'],
+                    'Número Nota': f"{nota['numero']}/{nota['serie']}",
+                    'Número Item': item['numero'],
+                    'Código': item['codigo'],
+                    'Descrição': item['descricao'],
+                    'Valor Total': item['valor_total']
+                })
+    
     try:
-        import sys
-        from io import BytesIO
-        
-        # Verificar se pandas está disponível
+        # Verificar se podemos usar CSV simples primeiro
         try:
-            import pandas as pd
-        except ImportError:
-            logger.error("Pandas não está instalado")
-            raise Exception("Biblioteca pandas não está disponível. Verifique a instalação.")
-        
-        # Verificar compatibilidade do NumPy
-        try:
-            import numpy as np
-            logger.info(f"Versão do NumPy: {np.__version__}")
-            logger.info(f"Versão do Pandas: {pd.__version__}")
-        except Exception as e:
-            logger.error(f"Erro ao verificar versões: {str(e)}")
-        
-        # Criar DataFrames para as notas e itens
-        dados_notas = []
-        dados_itens = []
-        
-        for nota in notas:
-            # Dados da nota
-            dados_notas.append({
-                'Tipo': nota['tipo'],
-                'Chave': nota['chave'],
-                'Número': nota['numero'],
-                'Série': nota['serie'],
-                'Data Emissão': nota['data_emissao'],
-                'Emitente': nota['emitente']['razao_social'],
-                'CNPJ Emitente': nota['emitente']['cnpj_cpf'],
-                'Destinatário': nota['destinatario']['razao_social'],
-                'CNPJ Destinatário': nota['destinatario']['cnpj_cpf'],
-                'Valor Total': nota['valor_total'],
-                'Forma Pagamento': nota['pagamento']['forma'],
-                'Frete': nota['frete']
-            })
+            logger.info("Tentando gerar CSV usando o módulo csv nativo")
+            import csv
+            from io import BytesIO, StringIO
             
-            # Dados dos itens (se solicitado)
-            if incluir_itens:
-                for item in nota['itens']:
-                    dados_itens.append({
-                        'Tipo Nota': nota['tipo'],
-                        'Chave Nota': nota['chave'],
-                        'Número Nota': f"{nota['numero']}/{nota['serie']}",
-                        'Número Item': item['numero'],
-                        'Código': item['codigo'],
-                        'Descrição': item['descricao'],
-                        'Valor Total': item['valor_total']
-                    })
-        
-        # Criar arquivo Excel na memória
-        output = BytesIO()
-        
-        # Em ambiente Vercel ou se tivermos problema com numpy/pandas
-        if is_vercel_env() or 'numpy.dtype size changed' in str(sys.exc_info()):
-            # Opção 1: CSV na memória
-            # Criar um arquivo ZIP contendo os CSVs
-            import zipfile
-            
-            with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # Converter DataFrame para CSV e adicionar ao ZIP
-                if dados_notas:
-                    # Usar lista de dicionários diretamente para evitar pandas/numpy
-                    import csv
-                    csv_buffer = BytesIO()
-                    if dados_notas:
-                        fieldnames = dados_notas[0].keys()
-                        csv_writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
-                        csv_writer.writeheader()
-                        csv_writer.writerows(dados_notas)
-                        csv_buffer.seek(0)
-                        zipf.writestr('notas.csv', csv_buffer.getvalue())
-                
-                # Adicionar itens se solicitado
-                if incluir_itens and dados_itens:
-                    itens_buffer = BytesIO()
-                    if dados_itens:
-                        fieldnames = dados_itens[0].keys()
-                        csv_writer = csv.DictWriter(itens_buffer, fieldnames=fieldnames)
-                        csv_writer.writeheader()
-                        csv_writer.writerows(dados_itens)
-                        itens_buffer.seek(0)
-                        zipf.writestr('itens.csv', itens_buffer.getvalue())
-            
-            # Configurar para download
-            output.seek(0)
-            return send_file(
-                output,
-                mimetype='application/zip',
-                as_attachment=True,
-                download_name='relatorio_notas.zip'
-            )
-        
-        else:
-            # Em ambiente local, usar XlsxWriter normalmente
-            try:
-                # Tenta usar pandas/xlsxwriter normalmente
-                df_notas = pd.DataFrame(dados_notas)
-                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                    # Salvar dados das notas
-                    df_notas.to_excel(writer, sheet_name='Notas', index=False)
-                    
-                    # Formatar a planilha de notas
-                    workbook = writer.book
-                    worksheet = writer.sheets['Notas']
-                    
-                    # Formatos
-                    header_format = workbook.add_format({
-                        'bold': True,
-                        'text_wrap': True,
-                        'valign': 'top',
-                        'bg_color': '#D9EAD3',
-                        'border': 1
-                    })
-                    
-                    # Aplicar formato ao cabeçalho
-                    for col_num, value in enumerate(df_notas.columns.values):
-                        worksheet.write(0, col_num, value, header_format)
-                    
-                    # Ajustar largura das colunas
-                    for i, col in enumerate(df_notas.columns):
-                        column_len = max(df_notas[col].astype(str).apply(len).max(), len(col)) + 2
-                        worksheet.set_column(i, i, column_len)
-                    
-                    # Salvar dados dos itens (se houver)
-                    if incluir_itens and dados_itens:
-                        df_itens = pd.DataFrame(dados_itens)
-                        df_itens.to_excel(writer, sheet_name='Itens', index=False)
-                        
-                        # Formatar a planilha de itens
-                        worksheet_itens = writer.sheets['Itens']
-                        
-                        # Aplicar formato ao cabeçalho
-                        for col_num, value in enumerate(df_itens.columns.values):
-                            worksheet_itens.write(0, col_num, value, header_format)
-                        
-                        # Ajustar largura das colunas
-                        for i, col in enumerate(df_itens.columns):
-                            column_len = max(df_itens[col].astype(str).apply(len).max(), len(col)) + 2
-                            worksheet_itens.set_column(i, i, column_len)
-                
-                # Preparar para download
-                output.seek(0)
-                return send_file(
-                    output,
-                    mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    as_attachment=True,
-                    download_name='relatorio_notas.xlsx'
-                )
-            except Exception as e:
-                logger.error(f"Erro ao gerar Excel com xlsxwriter: {str(e)}")
-                # Se falhar com xlsxwriter, tenta com opengendoc
-                df_notas = pd.DataFrame(dados_notas)
+            # Em qualquer ambiente, primeiro tentar CSV puro sem pandas
+            if not incluir_itens or not dados_itens:
+                # Apenas notas - gerar um único CSV
                 output = BytesIO()
-                df_notas.to_csv(output, index=False, encoding='utf-8')
+                
+                # Adicionar BOM para compatibilidade com Excel
+                output.write(u'\ufeff'.encode('utf-8'))
+                
+                # Criar um buffer intermediário
+                csv_buffer = StringIO()
+                
+                # Escrever dados no CSV
+                if dados_notas:
+                    fieldnames = dados_notas[0].keys()
+                    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(dados_notas)
+                
+                # Converter para bytes e adicionar ao output
+                output.write(csv_buffer.getvalue().encode('utf-8'))
                 output.seek(0)
+                
                 return send_file(
                     output,
                     mimetype='text/csv',
                     as_attachment=True,
                     download_name='relatorio_notas.csv'
                 )
+            else:
+                # Notas e itens - gerar um ZIP com dois CSVs
+                output = BytesIO()
+                
+                with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    # CSV para notas
+                    notas_buffer = StringIO()
+                    if dados_notas:
+                        fieldnames = dados_notas[0].keys()
+                        writer = csv.DictWriter(notas_buffer, fieldnames=fieldnames)
+                        writer.writeheader()
+                        writer.writerows(dados_notas)
+                    zipf.writestr('notas.csv', u'\ufeff' + notas_buffer.getvalue())
+                    
+                    # CSV para itens
+                    itens_buffer = StringIO()
+                    if dados_itens:
+                        fieldnames = dados_itens[0].keys()
+                        writer = csv.DictWriter(itens_buffer, fieldnames=fieldnames)
+                        writer.writeheader()
+                        writer.writerows(dados_itens)
+                    zipf.writestr('itens.csv', u'\ufeff' + itens_buffer.getvalue())
+                
+                output.seek(0)
+                return send_file(
+                    output,
+                    mimetype='application/zip',
+                    as_attachment=True,
+                    download_name='relatorio_notas.zip'
+                )
+                
+        except Exception as csv_error:
+            # Se CSV falhar, tentar pandas
+            logger.error(f"Erro ao gerar CSV com módulo nativo: {str(csv_error)}")
+            logger.info("Tentando usar pandas...")
+            
+            # Importar pandas apenas se o CSV nativo falhar
+            import pandas as pd
+            import sys
+            
+            # Criar arquivo Excel na memória
+            output = BytesIO()
+            
+            # Em ambiente Vercel ou se tivermos problema com numpy/pandas
+            if is_vercel_env() or 'numpy.dtype size changed' in str(sys.exc_info()):
+                # Opção 1: CSV na memória via pandas
+                # Criar um arquivo ZIP contendo os CSVs gerados pelo pandas
+                with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    # Converter DataFrame para CSV e adicionar ao ZIP
+                    if dados_notas:
+                        df_notas = pd.DataFrame(dados_notas)
+                        csv_buffer = BytesIO()
+                        df_notas.to_csv(csv_buffer, index=False, encoding='utf-8')
+                        csv_buffer.seek(0)
+                        zipf.writestr('notas.csv', csv_buffer.getvalue())
+                    
+                    # Adicionar itens se solicitado
+                    if incluir_itens and dados_itens:
+                        df_itens = pd.DataFrame(dados_itens)
+                        itens_buffer = BytesIO()
+                        df_itens.to_csv(itens_buffer, index=False, encoding='utf-8')
+                        itens_buffer.seek(0)
+                        zipf.writestr('itens.csv', itens_buffer.getvalue())
+                
+                # Configurar para download
+                output.seek(0)
+                return send_file(
+                    output,
+                    mimetype='application/zip',
+                    as_attachment=True,
+                    download_name='relatorio_notas.zip'
+                )
+            
+            else:
+                # Em ambiente local, usar XlsxWriter normalmente
+                try:
+                    # Tenta usar pandas/xlsxwriter normalmente
+                    df_notas = pd.DataFrame(dados_notas)
+                    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                        # Salvar dados das notas
+                        df_notas.to_excel(writer, sheet_name='Notas', index=False)
+                        
+                        # Formatar a planilha de notas
+                        workbook = writer.book
+                        worksheet = writer.sheets['Notas']
+                        
+                        # Formatos
+                        header_format = workbook.add_format({
+                            'bold': True,
+                            'text_wrap': True,
+                            'valign': 'top',
+                            'bg_color': '#D9EAD3',
+                            'border': 1
+                        })
+                        
+                        # Aplicar formato ao cabeçalho
+                        for col_num, value in enumerate(df_notas.columns.values):
+                            worksheet.write(0, col_num, value, header_format)
+                        
+                        # Ajustar largura das colunas
+                        for i, col in enumerate(df_notas.columns):
+                            column_len = max(df_notas[col].astype(str).apply(len).max(), len(col)) + 2
+                            worksheet.set_column(i, i, column_len)
+                        
+                        # Salvar dados dos itens (se houver)
+                        if incluir_itens and dados_itens:
+                            df_itens = pd.DataFrame(dados_itens)
+                            df_itens.to_excel(writer, sheet_name='Itens', index=False)
+                            
+                            # Formatar a planilha de itens
+                            worksheet_itens = writer.sheets['Itens']
+                            
+                            # Aplicar formato ao cabeçalho
+                            for col_num, value in enumerate(df_itens.columns.values):
+                                worksheet_itens.write(0, col_num, value, header_format)
+                            
+                            # Ajustar largura das colunas
+                            for i, col in enumerate(df_itens.columns):
+                                column_len = max(df_itens[col].astype(str).apply(len).max(), len(col)) + 2
+                                worksheet_itens.set_column(i, i, column_len)
+                    
+                    # Preparar para download
+                    output.seek(0)
+                    return send_file(
+                        output,
+                        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        as_attachment=True,
+                        download_name='relatorio_notas.xlsx'
+                    )
+                except Exception as e:
+                    logger.error(f"Erro ao gerar Excel com xlsxwriter: {str(e)}")
+                    # Se falhar com xlsxwriter, tenta com pandas para CSV
+                    df_notas = pd.DataFrame(dados_notas)
+                    output = BytesIO()
+                    df_notas.to_csv(output, index=False, encoding='utf-8')
+                    output.seek(0)
+                    return send_file(
+                        output,
+                        mimetype='text/csv',
+                        as_attachment=True,
+                        download_name='relatorio_notas.csv'
+                    )
     
     except Exception as e:
         # Log do erro para facilitar diagnóstico
         logger.error(f"Erro ao gerar Excel: {str(e)}")
         
-        # Em caso de erro, tentar formato CSV simples usando csv padrão
+        # Em caso de erro, tentar formato CSV simples usando csv padrão como último recurso
         try:
+            logger.info("Tentando fallback final para CSV")
             output = BytesIO()
             import csv
             
+            # Adicionar BOM para compatibilidade com Excel
+            output.write(u'\ufeff'.encode('utf-8'))
+            
+            # Criar um buffer intermediário
+            csv_buffer = StringIO()
+            
+            # Escrever dados no CSV
             if dados_notas:
                 fieldnames = dados_notas[0].keys()
-                output = BytesIO()
-                output.write(u'\ufeff'.encode('utf-8'))  # BOM para Excel reconhecer UTF-8
-                writer = csv.DictWriter(output, fieldnames=fieldnames)
+                writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(dados_notas)
-                
+            
+            # Converter para bytes e adicionar ao output
+            output.write(csv_buffer.getvalue().encode('utf-8'))
             output.seek(0)
+            
             return send_file(
                 output,
                 mimetype='text/csv',
@@ -395,7 +451,8 @@ def gerar_excel(notas, incluir_itens):
             )
         except Exception as fallback_error:
             logger.error(f"Erro no fallback CSV: {str(fallback_error)}")
-            raise Exception(f"Não foi possível gerar o relatório: {str(e)} | Fallback error: {str(fallback_error)}")
+            # Informar o usuário sobre o erro de maneira amigável
+            raise Exception(f"Não foi possível gerar o relatório. Por favor, tente novamente ou contate o suporte.")
 
 def gerar_csv(notas, incluir_itens):
     """Gera arquivos CSV com os dados das notas"""
