@@ -1,101 +1,100 @@
-# FSist Website Clone
+# Conversor XML para DANFE e Excel
 
-Este é um clone do site da FSist, implementado usando Flask, um framework web Python.
+Aplicação web desenvolvida em Flask para converter arquivos XML de notas fiscais eletrônicas (NFe) em DANFE (PDF) e relatórios em Excel.
+
+## Funcionalidades
+
+- Conversão de XML para DANFE (PDF)
+- Geração de relatórios em Excel a partir de XMLs
+- Visualização de informações das notas fiscais
+- Download individual ou em lote dos PDFs gerados
 
 ## Requisitos
 
 - Python 3.7 ou superior
 - Flask e outras dependências listadas no arquivo `requirements.txt`
 
-## Instalação
+## Instalação Local
 
 1. Clone este repositório:
 
-```
-git clone <url-do-repositorio>
-```
-
-2. Navegue até a pasta do projeto:
-
-```
-cd fsist-clone
+```bash
+git clone https://github.com/paulorrsa/conversor-xml.git
+cd conversor-xml
 ```
 
-3. Crie um ambiente virtual (opcional, mas recomendado):
+2. Crie e ative um ambiente virtual:
 
-```
+```bash
+# Criação
 python -m venv venv
+
+# Ativação (Windows)
+venv\Scripts\activate
+
+# Ativação (Linux/Mac)
+source venv/bin/activate
 ```
 
-4. Ative o ambiente virtual:
+3. Instale as dependências:
 
-   - No Windows:
-
-   ```
-   venv\Scripts\activate
-   ```
-
-   - No macOS/Linux:
-
-   ```
-   source venv/bin/activate
-   ```
-
-5. Instale as dependências:
-
-```
+```bash
 pip install -r requirements.txt
 ```
 
-## Executando a aplicação
+4. Execute a aplicação:
 
-1. Para iniciar o servidor de desenvolvimento:
-
-```
+```bash
 python app.py
 ```
 
-2. Acesse o site no navegador:
+5. Acesse a aplicação em `http://localhost:5000`
 
+## Implantação em Produção
+
+A aplicação está configurada para ser facilmente implantada em serviços como Heroku, Render, Railway ou PythonAnywhere:
+
+### Heroku
+
+```bash
+heroku create nome-do-app
+git push heroku main
 ```
-http://localhost:5000
-```
+
+### Render/Railway
+
+Basta conectar o repositório GitHub e configurar:
+
+- Runtime: Python
+- Build Command: `pip install -r requirements.txt`
+- Start Command: `gunicorn app:app`
+
+## API do DANFE
+
+A aplicação utiliza a API do MeuDanfe para geração dos PDFs. O serviço é chamado pela função `gerar_danfe_api` em `danfe_api.py`.
 
 ## Estrutura do Projeto
 
-- `app.py`: Arquivo principal da aplicação Flask
-- `app/templates/`: Contém todos os templates HTML
-- `app/static/`: Arquivos estáticos (CSS, JavaScript, imagens)
-  - `app/static/css/`: Arquivos CSS
-  - `app/static/js/`: Arquivos JavaScript
-  - `app/static/images/`: Imagens do site
+- `app.py`: Arquivo principal com as rotas e lógica da aplicação
+- `danfe_api.py`: Funções para interação com a API de geração de DANFE
+- `app/templates/`: Templates HTML
+- `app/static/`: Arquivos estáticos (CSS, JS, imagens)
+- `app/uploads/`: Pasta para arquivos temporários
 
-## Páginas Implementadas
+## Tecnologias Utilizadas
 
-- **Home**: Página inicial com visão geral dos serviços
-- **Sobre**: Informações sobre a empresa, história e equipe
-- **Serviços**: Detalhes sobre os serviços oferecidos
-- **Portfólio**: Casos de sucesso e projetos realizados
-- **Preços**: Planos e valores dos serviços
-- **Contato**: Formulário de contato e informações de contato
+- Flask: Framework web
+- Pandas: Processamento de dados para relatórios
+- XlsxWriter: Geração de planilhas Excel
+- ElementTree: Processamento de XML
+- Bootstrap: Framework CSS para interface
 
-## Personalização
+## Contribuições
 
-Para personalizar o site, você pode:
+Contribuições são bem-vindas! Para contribuir:
 
-1. Modificar os arquivos HTML em `app/templates/`
-2. Ajustar os estilos em `app/static/css/style.css`
-3. Adicionar suas próprias imagens em `app/static/images/`
-
-## Importante
-
-Este site é apenas para fins educacionais e demonstração. Antes de usar em produção, certifique-se de:
-
-1. Configurar corretamente a chave secreta da aplicação
-2. Implementar o envio real de e-mails no formulário de contato
-3. Configurar corretamente o tratamento de erros
-4. Adicionar medidas de segurança adicionais
-
-## Licença
-
-Este projeto é distribuído sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+1. Faça um fork do projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/nova-feature`)
+3. Commit suas mudanças (`git commit -m 'Adiciona nova feature'`)
+4. Push para a branch (`git push origin feature/nova-feature`)
+5. Abra um Pull Request

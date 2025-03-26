@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment directories
+venv/
+env/
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# Uploads directory (keep the directory, exclude contents)
+app/uploads/*
+!app/uploads/.gitkeep
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Database files
+*.db
+*.sqlite
+
+# Visual Studio Code
+.vscode/
+.idea/
+
+# OS specific files
+.DS_Store
+Thumbs.db 
