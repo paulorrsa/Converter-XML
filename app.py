@@ -12,6 +12,15 @@ import zipfile
 import requests
 import base64
 import tempfile
+import sys
+import logging
+
+# Configuração de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__, template_folder='app/templates', static_folder='app/static')
 app.config['SECRET_KEY'] = 'fsist-secret-key'
@@ -231,59 +240,120 @@ def gerar_excel(notas, incluir_itens):
                     'Valor Total': item['valor_total']
                 })
     
-    # Criar arquivo Excel
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        # Salvar dados das notas
-        df_notas = pd.DataFrame(dados_notas)
-        df_notas.to_excel(writer, sheet_name='Notas', index=False)
-        
-        # Formatar a planilha de notas
-        workbook = writer.book
-        worksheet = writer.sheets['Notas']
-        
-        # Formatos
-        header_format = workbook.add_format({
-            'bold': True,
-            'text_wrap': True,
-            'valign': 'top',
-            'bg_color': '#D9EAD3',
-            'border': 1
-        })
-        
-        # Aplicar formato ao cabeçalho
-        for col_num, value in enumerate(df_notas.columns.values):
-            worksheet.write(0, col_num, value, header_format)
-        
-        # Ajustar largura das colunas
-        for i, col in enumerate(df_notas.columns):
-            column_len = max(df_notas[col].astype(str).apply(len).max(), len(col)) + 2
-            worksheet.set_column(i, i, column_len)
-        
-        # Salvar dados dos itens (se houver)
-        if incluir_itens and dados_itens:
-            df_itens = pd.DataFrame(dados_itens)
-            df_itens.to_excel(writer, sheet_name='Itens', index=False)
-            
-            # Formatar a planilha de itens
-            worksheet_itens = writer.sheets['Itens']
-            
-            # Aplicar formato ao cabeçalho
-            for col_num, value in enumerate(df_itens.columns.values):
-                worksheet_itens.write(0, col_num, value, header_format)
-            
-            # Ajustar largura das colunas
-            for i, col in enumerate(df_itens.columns):
-                column_len = max(df_itens[col].astype(str).apply(len).max(), len(col)) + 2
-                worksheet_itens.set_column(i, i, column_len)
+    try:
+        # Verificar se pandas está disponível
+        if 'pandas' not in sys.modules:
+            import sys
+            import pandas as pd
     
-    output.seek(0)
-    return send_file(
-        output,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        as_attachment=True,
-        download_name='relatorio_notas.xlsx'
-    )
+        # Criar arquivo Excel na memória
+        output = BytesIO()
+        
+        # Em ambiente Vercel, podemos ter problemas com XlsxWriter
+        # Vamos usar uma abordagem alternativa que funciona melhor em serverless
+        if is_vercel_env():
+            # Opção 1: CSV na memória
+            # Criar um arquivo ZIP contendo os CSVs
+            import zipfile
+            
+            with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Converter DataFrame para CSV e adicionar ao ZIP
+                if dados_notas:
+                    df_notas = pd.DataFrame(dados_notas)
+                    csv_buffer = BytesIO()
+                    df_notas.to_csv(csv_buffer, index=False, encoding='utf-8')
+                    csv_buffer.seek(0)
+                    zipf.writestr('notas.csv', csv_buffer.getvalue())
+                
+                # Adicionar itens se solicitado
+                if incluir_itens and dados_itens:
+                    df_itens = pd.DataFrame(dados_itens)
+                    itens_buffer = BytesIO()
+                    df_itens.to_csv(itens_buffer, index=False, encoding='utf-8')
+                    itens_buffer.seek(0)
+                    zipf.writestr('itens.csv', itens_buffer.getvalue())
+            
+            # Configurar para download
+            output.seek(0)
+            return send_file(
+                output,
+                mimetype='application/zip',
+                as_attachment=True,
+                download_name='relatorio_notas.zip'
+            )
+        
+        else:
+            # Em ambiente local, usar XlsxWriter normalmente
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                # Salvar dados das notas
+                df_notas = pd.DataFrame(dados_notas)
+                df_notas.to_excel(writer, sheet_name='Notas', index=False)
+                
+                # Formatar a planilha de notas
+                workbook = writer.book
+                worksheet = writer.sheets['Notas']
+                
+                # Formatos
+                header_format = workbook.add_format({
+                    'bold': True,
+                    'text_wrap': True,
+                    'valign': 'top',
+                    'bg_color': '#D9EAD3',
+                    'border': 1
+                })
+                
+                # Aplicar formato ao cabeçalho
+                for col_num, value in enumerate(df_notas.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                
+                # Ajustar largura das colunas
+                for i, col in enumerate(df_notas.columns):
+                    column_len = max(df_notas[col].astype(str).apply(len).max(), len(col)) + 2
+                    worksheet.set_column(i, i, column_len)
+                
+                # Salvar dados dos itens (se houver)
+                if incluir_itens and dados_itens:
+                    df_itens = pd.DataFrame(dados_itens)
+                    df_itens.to_excel(writer, sheet_name='Itens', index=False)
+                    
+                    # Formatar a planilha de itens
+                    worksheet_itens = writer.sheets['Itens']
+                    
+                    # Aplicar formato ao cabeçalho
+                    for col_num, value in enumerate(df_itens.columns.values):
+                        worksheet_itens.write(0, col_num, value, header_format)
+                    
+                    # Ajustar largura das colunas
+                    for i, col in enumerate(df_itens.columns):
+                        column_len = max(df_itens[col].astype(str).apply(len).max(), len(col)) + 2
+                        worksheet_itens.set_column(i, i, column_len)
+            
+            # Preparar para download
+            output.seek(0)
+            return send_file(
+                output,
+                mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                as_attachment=True,
+                download_name='relatorio_notas.xlsx'
+            )
+    
+    except Exception as e:
+        # Log do erro para facilitar diagnóstico
+        logger.error(f"Erro ao gerar Excel: {str(e)}")
+        
+        # Em caso de erro, tentar formato CSV simples
+        output = BytesIO()
+        if dados_notas:
+            df_notas = pd.DataFrame(dados_notas)
+            df_notas.to_csv(output, index=False, encoding='utf-8')
+        
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name='relatorio_notas.csv'
+        )
 
 def gerar_csv(notas, incluir_itens):
     """Gera arquivos CSV com os dados das notas"""
@@ -552,11 +622,11 @@ def processar_xml(filepath):
             return xml_data
             
         except Exception as e:
-            print(f"Erro ao extrair informações: {str(e)}")
+            logger.error(f"Erro ao extrair informações: {str(e)}")
             return None
             
     except Exception as e:
-        print(f"Erro ao processar XML: {str(e)}")
+        logger.error(f"Erro ao processar XML: {str(e)}")
         return None
 
 def get_text(element, tag, ns):
@@ -1106,15 +1176,23 @@ def converter_xml_para_excel():
 @app.route('/download-excel')
 def download_excel():
     """Download do arquivo Excel com os dados processados."""
-    notas = session.get('notas_processadas')
-    incluir_itens = session.get('incluir_itens', False)
-    
-    if not notas:
-        flash('Nenhum dado disponível para download. Por favor, processe os XMLs novamente.', 'warning')
+    try:
+        notas = session.get('notas_processadas')
+        incluir_itens = session.get('incluir_itens', False)
+        
+        if not notas:
+            flash('Nenhum dado disponível para download. Por favor, processe os XMLs novamente.', 'warning')
+            return redirect(url_for('converter_xml_para_excel'))
+        
+        # Gerar e enviar o arquivo Excel
+        return gerar_excel(notas, incluir_itens)
+    except Exception as e:
+        # Log do erro para diagnóstico
+        logger.error(f"Erro ao processar download de Excel: {str(e)}")
+        
+        # Informar ao usuário
+        flash(f'Erro ao gerar arquivo: {str(e)}', 'danger')
         return redirect(url_for('converter_xml_para_excel'))
-    
-    # Gerar e enviar o arquivo Excel
-    return gerar_excel(notas, incluir_itens)
 
 if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
