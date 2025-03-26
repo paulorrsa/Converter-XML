@@ -22,6 +22,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Tentar importar numpy e pandas, mas continuar sem eles se não estiverem disponíveis
+try:
+    import numpy as np
+    import pandas as pd
+    NUMPY_PANDAS_AVAILABLE = True
+    logger.info("Numpy e Pandas disponíveis e carregados")
+except ImportError:
+    NUMPY_PANDAS_AVAILABLE = False
+    logger.warning("Numpy e/ou Pandas não disponíveis - funções de relatório Excel desativadas")
+
 app = Flask(__name__, template_folder='app/templates', static_folder='app/static')
 app.config['SECRET_KEY'] = 'fsist-secret-key'
 
