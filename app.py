@@ -1203,39 +1203,111 @@ def download_all_pdfs():
     import io
     
     processed_files = session.get('processed_files', [])
-    memory_file = io.BytesIO()
     
-    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for file in processed_files:
-            if file.get('pdf_gerado') and file.get('pdf_path'):
-                pdf_filename = file['pdf_path']
-                
-                if is_vercel_env():
-                    # No Vercel, temos que regenerar cada PDF
-                    try:
-                        # Recupera o XML
-                        temp_path = file.get('temp_path')
+    # Verifica se há arquivos processados
+    if not processed_files:
+        flash('Nenhum arquivo processado para download.', 'warning')
+        return redirect(url_for('converter_xml_para_danfe'))
+    
+    # Verifica se há pelo menos um arquivo com PDF gerado
+    has_pdfs = any(file.get('pdf_gerado', False) for file in processed_files)
+    if not has_pdfs:
+        # Se nenhum PDF foi gerado, gera PDFs para todos os arquivos primeiro
+        for i, file in enumerate(processed_files):
+            if not file.get('pdf_gerado'):
+                try:
+                    temp_path = file.get('temp_path')
+                    if temp_path and os.path.exists(temp_path):
+                        with open(temp_path, 'r', encoding='utf-8') as f:
+                            xml_content = f.read()
                         
-                        if temp_path and os.path.exists(temp_path):
-                            with open(temp_path, 'r', encoding='utf-8') as f:
-                                xml_content = f.read()
+                        success, result = gerar_danfe_api(xml_content)
+                        if success:
+                            pdf_filename = f"{file.get('chave')}.pdf"
+                            file['pdf_gerado'] = True
+                            file['pdf_path'] = pdf_filename
                             
-                            # Gera o PDF novamente
-                            success, result = gerar_danfe_api(xml_content)
+                            # Em ambiente local, salva o PDF no sistema de arquivos
+                            if not is_vercel_env():
+                                pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename)
+                                with open(pdf_path, 'wb') as pdf_file:
+                                    pdf_file.write(base64.b64decode(result))
                             
-                            if success:
-                                # Adiciona o PDF ao ZIP a partir do conteúdo em memória
-                                pdf_content = base64.b64decode(result)
-                                zf.writestr(pdf_filename, pdf_content)
-                    except Exception as e:
-                        flash(f"Erro ao gerar PDF {pdf_filename}: {str(e)}", "error")
-                else:
-                    # Em ambiente local, lemos do sistema de arquivos
-                    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename)
-                    if os.path.exists(pdf_path):
-                        # Usar o nome do arquivo como nome no ZIP
-                        arcname = os.path.basename(pdf_path)
-                        zf.write(pdf_path, arcname)
+                            # Atualiza a sessão
+                            processed_files[i] = file
+                            session['processed_files'] = processed_files
+                            session.modified = True
+                except Exception as e:
+                    logger.error(f"Erro ao gerar PDF para {file.get('nome', 'arquivo desconhecido')}: {str(e)}")
+                    continue
+    
+    # Cria um arquivo ZIP em memória
+    memory_file = io.BytesIO()
+    pdf_count = 0
+    
+    try:
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for file in processed_files:
+                if file.get('pdf_gerado') and file.get('pdf_path'):
+                    pdf_filename = file['pdf_path']
+                    
+                    if is_vercel_env():
+                        # No Vercel, regenera cada PDF
+                        try:
+                            # Recupera o XML
+                            temp_path = file.get('temp_path')
+                            
+                            if temp_path and os.path.exists(temp_path):
+                                with open(temp_path, 'r', encoding='utf-8') as f:
+                                    xml_content = f.read()
+                                
+                                # Gera o PDF novamente
+                                success, result = gerar_danfe_api(xml_content)
+                                
+                                if success:
+                                    # Adiciona o PDF ao ZIP a partir do conteúdo em memória
+                                    pdf_content = base64.b64decode(result)
+                                    zf.writestr(pdf_filename, pdf_content)
+                                    pdf_count += 1
+                                else:
+                                    flash(f"Erro ao gerar PDF {pdf_filename}: {result}", "warning")
+                        except Exception as e:
+                            flash(f"Erro ao gerar PDF {pdf_filename}: {str(e)}", "warning")
+                    else:
+                        # Em ambiente local, lemos do sistema de arquivos
+                        pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], pdf_filename)
+                        if os.path.exists(pdf_path):
+                            # Usar o nome do arquivo como nome no ZIP
+                            arcname = os.path.basename(pdf_path)
+                            zf.write(pdf_path, arcname)
+                            pdf_count += 1
+                        else:
+                            # Tenta regenerar o PDF se o arquivo não for encontrado
+                            try:
+                                temp_path = file.get('temp_path')
+                                if temp_path and os.path.exists(temp_path):
+                                    with open(temp_path, 'r', encoding='utf-8') as f:
+                                        xml_content = f.read()
+                                    
+                                    success, result = gerar_danfe_api(xml_content)
+                                    if success:
+                                        pdf_content = base64.b64decode(result)
+                                        zf.writestr(pdf_filename, pdf_content)
+                                        pdf_count += 1
+                                        
+                                        # Salva o PDF regenerado no sistema de arquivos
+                                        with open(pdf_path, 'wb') as pdf_file:
+                                            pdf_file.write(pdf_content)
+                            except Exception as e:
+                                flash(f"Erro ao regenerar PDF {pdf_filename}: {str(e)}", "warning")
+    except Exception as e:
+        flash(f"Erro ao criar arquivo ZIP: {str(e)}", "danger")
+        return redirect(url_for('converter_xml_para_danfe'))
+    
+    # Verifica se algum PDF foi adicionado ao ZIP
+    if pdf_count == 0:
+        flash("Nenhum PDF pôde ser gerado para download.", "warning")
+        return redirect(url_for('converter_xml_para_danfe'))
     
     # Configurar o ponteiro de leitura para o início
     memory_file.seek(0)
