@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Converter XML para Excel - Conttec{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header py-3 bg-light">
+                    <h4 class="mb-0">Converter XML para Excel</h4>
+                </div>
+                <div class="card-body p-4">
+                    {% if not mostrar_relatorio %}
+                    <div class="row">
+                        <div class="col-md-4">
+                            <form action="{{ url_for('converter_xml_para_excel') }}" method="post" enctype="multipart/form-data">
+                                <div class="mb-4">
+                                    <label for="xml_files" class="form-label">Selecione os arquivos XML:</label>
+                                    <div class="input-group">
+                                        <input type="file" class="form-control" id="xml_files" name="xml_files" accept=".xml" multiple required>
+                                        <button class="btn btn-primary" type="submit">Converter</button>
+                                    </div>
+                                    <div class="form-text">Você pode selecionar múltiplos arquivos XML de NFe, NFCe e CTe</div>
+                                </div>
+                                
+                                <div class="card bg-light p-3">
+                                    <h6 class="mb-3"><i class="fas fa-cog me-2"></i>Opções de conversão</h6>
+                                    
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" id="incluir_itens" name="incluir_itens" checked>
+                                        <label class="form-check-label" for="incluir_itens">
+                                            Incluir itens das notas
+                                        </label>
+                                        <div class="form-text">Se marcado, será criada uma aba adicional com os itens de todas as notas</div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div class="col-md-8">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body">
+                                    <h5 class="mb-3"><i class="fas fa-info-circle text-primary me-2"></i>Instruções</h5>
+                                    <ol class="ps-3">
+                                        <li>Selecione um ou mais arquivos XML de notas fiscais</li>
+                                        <li>Escolha se deseja incluir os itens das notas no arquivo Excel</li>
+                                        <li>Clique em "Converter" para gerar o relatório</li>
+                                        <li>Verifique os dados e clique em "Baixar Excel" se necessário</li>
+                                    </ol>
+                                    
+                                    <div class="alert alert-info mt-3">
+                                        <h6><i class="fas fa-exclamation-circle me-2"></i>Importante!</h6>
+                                        <ul class="mb-0 ps-3">
+                                            <li>Você pode selecionar até 50 arquivos por vez</li>
+                                            <li>O tamanho máximo por arquivo é de 5MB</li>
+                                            <li>Os arquivos XML devem estar válidos e completos</li>
+                                            <li>O arquivo Excel terá duas abas se a opção de itens estiver marcada</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <!-- Exibição do Relatório -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="mb-0"><i class="fas fa-table text-primary me-2"></i>Relatório de Notas Fiscais</h5>
+                            <a href="{{ url_for('download_excel') }}" class="btn btn-success">
+                                <i class="fas fa-download me-2"></i>Baixar Excel
+                            </a>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Arquivo</th>
+                                        <th>Tipo</th>
+                                        <th>Número</th>
+                                        <th>Série</th>
+                                        <th>Data Emissão</th>
+                                        <th>Emitente</th>
+                                        <th>Destinatário</th>
+                                        <th>Valor Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for nota in notas %}
+                                    <tr>
+                                        <td>{{ nota.arquivo_original }}</td>
+                                        <td>{{ nota.tipo }}</td>
+                                        <td>{{ nota.numero }}</td>
+                                        <td>{{ nota.serie }}</td>
+                                        <td>{{ nota.data_emissao }}</td>
+                                        <td>{{ nota.emitente.razao_social }}</td>
+                                        <td>{{ nota.destinatario.razao_social }}</td>
+                                        <td class="text-end">R$ {{ nota.valor_total }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="alert alert-info mt-3">
+                            <p class="mb-0"><i class="fas fa-info-circle me-2"></i>Total de notas processadas: <strong>{{ notas|length }}</strong></p>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <a href="{{ url_for('converter_xml_para_excel') }}" class="btn btn-outline-secondary me-2">
+                                <i class="fas fa-arrow-left me-1"></i>Voltar
+                            </a>
+                            <a href="{{ url_for('download_excel') }}" class="btn btn-success">
+                                <i class="fas fa-download me-2"></i>Baixar Excel
+                            </a>
+                        </div>
+                    </div>
+                    
+                    {% if incluir_itens and notas %}
+                    <div class="card mt-4">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="fas fa-list text-primary me-2"></i>Itens das Notas</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Nota</th>
+                                            <th>Item</th>
+                                            <th>Código</th>
+                                            <th>Descrição</th>
+                                            <th>Qtd</th>
+                                            <th>Valor Unit.</th>
+                                            <th>Valor Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for nota in notas %}
+                                            {% for item in nota.itens %}
+                                            <tr>
+                                                <td>{{ nota.numero }}/{{ nota.serie }}</td>
+                                                <td>{{ item.numero }}</td>
+                                                <td>{{ item.codigo }}</td>
+                                                <td>{{ item.descricao }}</td>
+                                                <td class="text-end">{{ item.quantidade }}</td>
+                                                <td class="text-end">R$ {{ item.valor_unitario }}</td>
+                                                <td class="text-end">R$ {{ item.valor_total }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="alert alert-info mt-3">
+                                <p class="mb-0"><i class="fas fa-info-circle me-2"></i>Total de itens: <strong>{% set total_itens = 0 %}{% for nota in notas %}{% set total_itens = total_itens + nota.itens|length %}{% endfor %}{{ total_itens }}</strong></p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %} 

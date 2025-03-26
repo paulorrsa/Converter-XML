@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Converter XML para PDF - Conttec{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header py-3 bg-light">
+                    <h4 class="mb-0">Converter XML para PDF (DANFE/DACTe)</h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <form action="{{ url_for('converter_xml_para_danfe') }}" method="post" enctype="multipart/form-data">
+                                <div class="mb-4">
+                                    <label for="xml_files" class="form-label">Selecione os arquivos XML:</label>
+                                    <div class="input-group">
+                                        <input type="file" class="form-control" id="xml_files" name="xml_files" accept=".xml" multiple required>
+                                        <button class="btn btn-primary" type="submit">Processar</button>
+                                    </div>
+                                    <div class="form-text">Você pode selecionar múltiplos arquivos XML de NFe, NFCe e CTe</div>
+                                </div>
+                                
+                                <div class="card bg-light p-3">
+                                    <h6 class="mb-3"><i class="fas fa-cog me-2"></i>Opções de conversão</h6>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Formato de saída:</label>
+                                        <div class="d-flex">
+                                            <div class="form-check me-3">
+                                                <input class="form-check-input" type="radio" name="formato" id="formato_danfe" value="danfe" checked>
+                                                <label class="form-check-label" for="formato_danfe">DANFE</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="formato" id="formato_dacte" value="dacte">
+                                                <label class="form-check-label" for="formato_dacte">DACTe</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" id="incluir_qrcode" name="incluir_qrcode" checked>
+                                        <label class="form-check-label" for="incluir_qrcode">
+                                            Incluir QR Code
+                                        </label>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div class="col-md-8">
+                            <div class="card h-100 border-0 bg-light">
+                                <div class="card-body">
+                                    <h5 class="mb-3"><i class="fas fa-info-circle text-primary me-2"></i>Instruções</h5>
+                                    <ol class="ps-3">
+                                        <li>Selecione um ou mais arquivos XML de notas fiscais</li>
+                                        <li>Clique em "Processar" para ler os arquivos</li>
+                                        <li>Revise as informações das notas processadas</li>
+                                        <li>Use os botões de ação para gerar e baixar os PDFs</li>
+                                    </ol>
+                                    
+                                    <div class="alert alert-info mt-3">
+                                        <h6><i class="fas fa-exclamation-circle me-2"></i>Importante!</h6>
+                                        <ul class="mb-0 ps-3">
+                                            <li>Você pode selecionar até 50 arquivos por vez</li>
+                                            <li>O tamanho máximo por arquivo é de 5MB</li>
+                                            <li>Os arquivos XML devem estar válidos e completos</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if processed_files %}
+                    <hr class="my-4">
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Notas Processadas</h5>
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-success" onclick="downloadAll()">
+                                <i class="fas fa-download me-2"></i>Baixar Todos
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th>Número/Série</th>
+                                    <th>Emitente</th>
+                                    <th>Destinatário</th>
+                                    <th>Data Emissão</th>
+                                    <th>Valor Total</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file in processed_files %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-{{ 'info' if file.tipo == 'NFe' else 'warning' if file.tipo == 'NFCe' else 'secondary' }}">
+                                            {{ file.tipo }}
+                                        </span>
+                                    </td>
+                                    <td>{{ file.numero }}/{{ file.serie }}</td>
+                                    <td>
+                                        <div>{{ file.emitente.razao_social }}</div>
+                                        <small class="text-muted">{{ file.emitente.cnpj_cpf }}</small>
+                                    </td>
+                                    <td>
+                                        <div>{{ file.destinatario.razao_social }}</div>
+                                        <small class="text-muted">{{ file.destinatario.cnpj_cpf }}</small>
+                                    </td>
+                                    <td>{{ file.data_emissao }}</td>
+                                    <td>R$ {{ file.valor_total }}</td>
+                                    <td>
+                                        {% if file.status == 'success' %}
+                                        <span class="badge bg-success">Processado</span>
+                                        {% else %}
+                                        <span class="badge bg-danger" title="{{ file.mensagem }}">Erro</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if file.status == 'success' %}
+                                        <div class="btn-group">
+                                            <a href="{{ url_for('gerar_pdf', chave=file.chave) }}" class="btn btn-sm btn-primary" title="Gerar PDF" target="_blank">
+                                                <i class="fas fa-file-pdf"></i>
+                                            </a>
+                                            {% if file.pdf_gerado %}
+                                            <a href="{{ url_for('visualizar_pdf', filename=file.pdf_path) }}" class="btn btn-sm btn-info" title="Visualizar" target="_blank">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{{ url_for('download_pdf', filename=file.pdf_path) }}" class="btn btn-sm btn-success" title="Download">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para visualização do PDF -->
+    <div class="modal fade" id="pdfModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Visualizar DANFE</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <iframe id="pdfViewer" style="width: 100%; height: 80vh; border: none;"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function downloadAll() {
+    window.location.href = "{{ url_for('download_all_pdfs') }}";
+}
+
+function showPDF(pdfUrl) {
+    document.getElementById('pdfViewer').src = pdfUrl;
+    var modal = new bootstrap.Modal(document.getElementById('pdfModal'));
+    modal.show();
+}
+</script>
+{% endblock %} 

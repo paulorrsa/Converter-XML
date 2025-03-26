@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40" viewBox="0 0 120 40">
+  <style>
+    .text-primary { fill: #007bff; font-family: Arial, sans-serif; font-weight: bold; }
+    .text-secondary { fill: #6c757d; font-family: Arial, sans-serif; font-size: 12px; }
+  </style>
+  <text x="5" y="25" class="text-primary" font-size="24">Conttec</text>
+  <text x="65" y="25" class="text-secondary">XML</text>
+</svg> 
