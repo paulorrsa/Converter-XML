@@ -1288,4 +1288,7 @@ if __name__ == '__main__':
 else:
     # Garantir que a pasta uploads exista quando executado pelo Vercel
     if 'UPLOAD_FOLDER' in app.config and not os.path.exists(app.config['UPLOAD_FOLDER']):
-        os.makedirs(app.config['UPLOAD_FOLDER']) 
+        os.makedirs(app.config['UPLOAD_FOLDER'])
+
+# Necessário para o Vercel
+from app import app as application 
