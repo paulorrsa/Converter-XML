@@ -964,4 +964,8 @@ def download_excel():
 if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
-    app.run(debug=True) 
+    app.run(debug=True)
+else:
+    # Garantir que a pasta uploads exista quando executado pelo Vercel
+    if 'UPLOAD_FOLDER' in app.config and not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER']) 
