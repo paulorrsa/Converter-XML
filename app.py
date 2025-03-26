@@ -1318,6 +1318,33 @@ def download_excel():
         flash(f'Erro ao gerar arquivo: {str(e)}', 'danger')
         return redirect(url_for('converter_xml_para_excel'))
 
+@app.route('/politica-privacidade')
+def politica_privacidade():
+    """Página de Política de Privacidade"""
+    return render_template('politica_privacidade.html')
+
+@app.route('/termos-uso')
+def termos_uso():
+    """Página de Termos de Uso"""
+    return render_template('termos_uso.html')
+
+@app.route('/politica-cookies')
+def politica_cookies():
+    """Página de Política de Cookies"""
+    return render_template('politica_cookies.html')
+
+@app.route('/sitemap.xml')
+def sitemap():
+    """Gera o sitemap do site para indexação por motores de busca"""
+    import datetime
+    lastmod = datetime.datetime.now().strftime('%Y-%m-%d')
+    return render_template('sitemap.xml', lastmod=lastmod), 200, {'Content-Type': 'application/xml'}
+
+@app.route('/robots.txt')
+def robots():
+    """Serve o arquivo robots.txt"""
+    return render_template('robots.txt'), 200, {'Content-Type': 'text/plain'}
+
 if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
