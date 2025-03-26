@@ -246,63 +246,32 @@ def gerar_excel(notas, incluir_itens):
             from io import BytesIO, StringIO
             
             # Em qualquer ambiente, primeiro tentar CSV puro sem pandas
-            if not incluir_itens or not dados_itens:
-                # Apenas notas - gerar um único CSV
-                output = BytesIO()
-                
-                # Adicionar BOM para compatibilidade com Excel
-                output.write(u'\ufeff'.encode('utf-8'))
-                
-                # Criar um buffer intermediário
-                csv_buffer = StringIO()
-                
-                # Escrever dados no CSV
-                if dados_notas:
-                    fieldnames = dados_notas[0].keys()
-                    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
-                    writer.writeheader()
-                    writer.writerows(dados_notas)
-                
-                # Converter para bytes e adicionar ao output
-                output.write(csv_buffer.getvalue().encode('utf-8'))
-                output.seek(0)
-                
-                return send_file(
-                    output,
-                    mimetype='text/csv',
-                    as_attachment=True,
-                    download_name='relatorio_notas.csv'
-                )
-            else:
-                # Notas e itens - gerar um ZIP com dois CSVs
-                output = BytesIO()
-                
-                with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    # CSV para notas
-                    notas_buffer = StringIO()
-                    if dados_notas:
-                        fieldnames = dados_notas[0].keys()
-                        writer = csv.DictWriter(notas_buffer, fieldnames=fieldnames)
-                        writer.writeheader()
-                        writer.writerows(dados_notas)
-                    zipf.writestr('notas.csv', u'\ufeff' + notas_buffer.getvalue())
-                    
-                    # CSV para itens
-                    itens_buffer = StringIO()
-                    if dados_itens:
-                        fieldnames = dados_itens[0].keys()
-                        writer = csv.DictWriter(itens_buffer, fieldnames=fieldnames)
-                        writer.writeheader()
-                        writer.writerows(dados_itens)
-                    zipf.writestr('itens.csv', u'\ufeff' + itens_buffer.getvalue())
-                
-                output.seek(0)
-                return send_file(
-                    output,
-                    mimetype='application/zip',
-                    as_attachment=True,
-                    download_name='relatorio_notas.zip'
-                )
+            # Apenas notas - gerar um único CSV (não compactado)
+            output = BytesIO()
+            
+            # Adicionar BOM para compatibilidade com Excel
+            output.write(u'\ufeff'.encode('utf-8'))
+            
+            # Criar um buffer intermediário
+            csv_buffer = StringIO()
+            
+            # Escrever dados no CSV
+            if dados_notas:
+                fieldnames = dados_notas[0].keys()
+                writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(dados_notas)
+            
+            # Converter para bytes e adicionar ao output
+            output.write(csv_buffer.getvalue().encode('utf-8'))
+            output.seek(0)
+            
+            return send_file(
+                output,
+                mimetype='text/csv',
+                as_attachment=True,
+                download_name='relatorio_notas.csv'
+            )
                 
         except Exception as csv_error:
             # Se CSV falhar, tentar pandas
@@ -318,33 +287,18 @@ def gerar_excel(notas, incluir_itens):
             
             # Em ambiente Vercel ou se tivermos problema com numpy/pandas
             if is_vercel_env() or 'numpy.dtype size changed' in str(sys.exc_info()):
-                # Opção 1: CSV na memória via pandas
-                # Criar um arquivo ZIP contendo os CSVs gerados pelo pandas
-                with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    # Converter DataFrame para CSV e adicionar ao ZIP
-                    if dados_notas:
-                        df_notas = pd.DataFrame(dados_notas)
-                        csv_buffer = BytesIO()
-                        df_notas.to_csv(csv_buffer, index=False, encoding='utf-8')
-                        csv_buffer.seek(0)
-                        zipf.writestr('notas.csv', csv_buffer.getvalue())
+                # Criar CSV via pandas (não compactado)
+                if dados_notas:
+                    df_notas = pd.DataFrame(dados_notas)
+                    df_notas.to_csv(output, index=False, encoding='utf-8')
+                    output.seek(0)
                     
-                    # Adicionar itens se solicitado
-                    if incluir_itens and dados_itens:
-                        df_itens = pd.DataFrame(dados_itens)
-                        itens_buffer = BytesIO()
-                        df_itens.to_csv(itens_buffer, index=False, encoding='utf-8')
-                        itens_buffer.seek(0)
-                        zipf.writestr('itens.csv', itens_buffer.getvalue())
-                
-                # Configurar para download
-                output.seek(0)
-                return send_file(
-                    output,
-                    mimetype='application/zip',
-                    as_attachment=True,
-                    download_name='relatorio_notas.zip'
-                )
+                    return send_file(
+                        output,
+                        mimetype='text/csv',
+                        as_attachment=True,
+                        download_name='relatorio_notas.csv'
+                    )
             
             else:
                 # Em ambiente local, usar XlsxWriter normalmente
@@ -456,65 +410,99 @@ def gerar_excel(notas, incluir_itens):
 
 def gerar_csv(notas, incluir_itens):
     """Gera arquivos CSV com os dados das notas"""
-    import pandas as pd
-    from io import BytesIO
-    import zipfile
-    
-    # Criar DataFrames para as notas e itens
-    dados_notas = []
-    dados_itens = []
-    
-    for nota in notas:
-        # Dados da nota
-        dados_notas.append({
-            'Tipo': nota['tipo'],
-            'Chave': nota['chave'],
-            'Número': nota['numero'],
-            'Série': nota['serie'],
-            'Data Emissão': nota['data_emissao'],
-            'Emitente': nota['emitente']['razao_social'],
-            'CNPJ Emitente': nota['emitente']['cnpj_cpf'],
-            'Destinatário': nota['destinatario']['razao_social'],
-            'CNPJ Destinatário': nota['destinatario']['cnpj_cpf'],
-            'Valor Total': nota['valor_total'],
-            'Forma Pagamento': nota['pagamento']['forma'],
-            'Frete': nota['frete']
-        })
+    try:
+        import pandas as pd
+        from io import BytesIO
         
-        # Dados dos itens (se solicitado)
-        if incluir_itens:
-            for item in nota['itens']:
-                dados_itens.append({
-                    'Tipo Nota': nota['tipo'],
-                    'Chave Nota': nota['chave'],
-                    'Número Nota': f"{nota['numero']}/{nota['serie']}",
-                    'Número Item': item['numero'],
-                    'Código': item['codigo'],
-                    'Descrição': item['descricao'],
-                    'Valor Total': item['valor_total']
-                })
-    
-    # Criar arquivo ZIP com os CSVs
-    output = BytesIO()
-    with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Criar DataFrames para as notas e itens
+        dados_notas = []
+        dados_itens = []
+        
+        for nota in notas:
+            # Dados da nota
+            dados_notas.append({
+                'Tipo': nota['tipo'],
+                'Chave': nota['chave'],
+                'Número': nota['numero'],
+                'Série': nota['serie'],
+                'Data Emissão': nota['data_emissao'],
+                'Emitente': nota['emitente']['razao_social'],
+                'CNPJ Emitente': nota['emitente']['cnpj_cpf'],
+                'Destinatário': nota['destinatario']['razao_social'],
+                'CNPJ Destinatário': nota['destinatario']['cnpj_cpf'],
+                'Valor Total': nota['valor_total'],
+                'Forma Pagamento': nota['pagamento']['forma'],
+                'Frete': nota['frete']
+            })
+            
+            # Dados dos itens (se solicitado)
+            if incluir_itens:
+                for item in nota['itens']:
+                    dados_itens.append({
+                        'Tipo Nota': nota['tipo'],
+                        'Chave Nota': nota['chave'],
+                        'Número Nota': f"{nota['numero']}/{nota['serie']}",
+                        'Número Item': item['numero'],
+                        'Código': item['codigo'],
+                        'Descrição': item['descricao'],
+                        'Valor Total': item['valor_total']
+                    })
+        
+        # Criar arquivo CSV (não compactado)
+        output = BytesIO()
+        
+        # Adicionar BOM para compatibilidade com Excel
+        output.write(u'\ufeff'.encode('utf-8'))
+        
         # Salvar dados das notas
         df_notas = pd.DataFrame(dados_notas)
-        notas_csv = df_notas.to_csv(index=False).encode('utf-8')
-        zipf.writestr('notas.csv', notas_csv)
+        csv_data = df_notas.to_csv(index=False).encode('utf-8')
+        output.write(csv_data)
         
-        # Salvar dados dos itens (se houver)
-        if incluir_itens and dados_itens:
-            df_itens = pd.DataFrame(dados_itens)
-            itens_csv = df_itens.to_csv(index=False).encode('utf-8')
-            zipf.writestr('itens.csv', itens_csv)
-    
-    output.seek(0)
-    return send_file(
-        output,
-        mimetype='application/zip',
-        as_attachment=True,
-        download_name='relatorio_notas.zip'
-    )
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name='relatorio_notas.csv'
+        )
+        
+    except Exception as e:
+        # Em caso de erro, tentar formato CSV simples
+        try:
+            logger.info(f"Erro com pandas: {str(e)}. Tentando CSV nativo.")
+            import csv
+            from io import BytesIO, StringIO
+            
+            output = BytesIO()
+            
+            # Adicionar BOM para compatibilidade com Excel
+            output.write(u'\ufeff'.encode('utf-8'))
+            
+            # Criar um buffer intermediário
+            csv_buffer = StringIO()
+            
+            # Escrever dados no CSV
+            if dados_notas:
+                fieldnames = dados_notas[0].keys()
+                writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(dados_notas)
+            
+            # Converter para bytes e adicionar ao output
+            output.write(csv_buffer.getvalue().encode('utf-8'))
+            output.seek(0)
+            
+            return send_file(
+                output,
+                mimetype='text/csv',
+                as_attachment=True,
+                download_name='relatorio_notas.csv'
+            )
+        except Exception as fallback_error:
+            logger.error(f"Erro no fallback CSV: {str(fallback_error)}")
+            # Informar o usuário sobre o erro de maneira amigável
+            raise Exception(f"Não foi possível gerar o relatório. Por favor, tente novamente ou contate o suporte.")
 
 def processar_xml(filepath):
     """Processa o arquivo XML e extrai as informações relevantes"""
