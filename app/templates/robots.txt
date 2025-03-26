@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /app/uploads/
+Disallow: /static/admin/
+
+Sitemap: {{ url_for('sitemap', _external=True) }} 
