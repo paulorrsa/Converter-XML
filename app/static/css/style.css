@@ -18,10 +18,13 @@
 }
 
 body {
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Arial", sans-serif;
   color: #333;
   line-height: 1.6;
   background-color: #f9f9f9;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 h1,
@@ -142,7 +145,64 @@ main {
 
 /* Footer */
 footer {
+  margin-top: auto;
+  background-color: #f8f9fa;
+  padding: 2rem 0;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+  flex-wrap: wrap;
+}
+
+.footer-links {
+  flex: 1;
+  margin-right: 2rem;
+  min-width: 200px;
+  margin-bottom: 1.5rem;
+}
+
+.footer-links h3 {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.footer-links a {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: #007bff;
+  text-decoration: underline;
+}
+
+.social-media {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.social-media a {
+  color: #333;
+  font-size: 1.5rem;
+  transition: color 0.3s ease;
+}
+
+.social-media a:hover {
+  color: #007bff;
+}
+
+.footer-bottom {
+  text-align: center;
+  padding-top: 1rem;
   border-top: 1px solid #eee;
+  margin-top: 1rem;
 }
 
 /* Responsive Adjustments */
@@ -154,6 +214,15 @@ footer {
   .action-buttons .btn {
     width: 100%;
     margin-right: 0;
+  }
+
+  .footer-content {
+    flex-direction: column;
+  }
+
+  .footer-links {
+    margin-right: 0;
+    margin-bottom: 1.5rem;
   }
 }
 
@@ -207,5 +276,3 @@ footer {
 .text-muted {
   color: #6c757d !important;
 }
-
-
