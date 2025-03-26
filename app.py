@@ -256,53 +256,82 @@ def gerar_excel(notas, incluir_itens):
             from io import BytesIO, StringIO
             
             # Em qualquer ambiente, primeiro tentar CSV puro sem pandas
-            # Apenas notas - gerar um único CSV (não compactado)
-            output = BytesIO()
-            
-            # Adicionar BOM para compatibilidade com Excel
-            output.write(u'\ufeff'.encode('utf-8'))
-            
-            # Criar um buffer intermediário
-            csv_buffer = StringIO()
-            
-            # Escrever dados no CSV
-            if dados_notas:
-                fieldnames = dados_notas[0].keys()
-                writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(dados_notas)
-            
-            # Converter para bytes e adicionar ao output
-            output.write(csv_buffer.getvalue().encode('utf-8'))
-            output.seek(0)
-            
-            return send_file(
-                output,
-                mimetype='text/csv',
-                as_attachment=True,
-                download_name='relatorio_notas.csv'
-            )
+            if not incluir_itens or not dados_itens:
+                # Apenas notas - gerar um único CSV
+                output = BytesIO()
+                
+                # Adicionar BOM para compatibilidade com Excel
+                output.write(u'\ufeff'.encode('utf-8'))
+                
+                # Criar um buffer intermediário
+                csv_buffer = StringIO()
+                
+                # Escrever dados no CSV
+                if dados_notas:
+                    fieldnames = dados_notas[0].keys()
+                    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(dados_notas)
+                
+                # Converter para bytes e adicionar ao output
+                output.write(csv_buffer.getvalue().encode('utf-8'))
+                output.seek(0)
+                
+                return send_file(
+                    output,
+                    mimetype='text/csv',
+                    as_attachment=True,
+                    download_name='relatorio_notas.csv'
+                )
+            else:
+                # Notas e itens - gerar dois CSVs separados sem compactação
+                # Neste caso, geramos apenas o CSV das notas
+                output = BytesIO()
+                
+                # Adicionar BOM para compatibilidade com Excel
+                output.write(u'\ufeff'.encode('utf-8'))
+                
+                # Criar um buffer intermediário
+                csv_buffer = StringIO()
+                
+                # Escrever dados no CSV
+                if dados_notas:
+                    fieldnames = dados_notas[0].keys()
+                    writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(dados_notas)
+                
+                # Converter para bytes e adicionar ao output
+                output.write(csv_buffer.getvalue().encode('utf-8'))
+                output.seek(0)
+                
+                return send_file(
+                    output,
+                    mimetype='text/csv',
+                    as_attachment=True,
+                    download_name='relatorio_notas.csv'
+                )
                 
         except Exception as csv_error:
-            # Se CSV falhar, tentar pandas
+            # Se CSV falhar, tentar pandas apenas se disponível
             logger.error(f"Erro ao gerar CSV com módulo nativo: {str(csv_error)}")
-            logger.info("Tentando usar pandas...")
             
-            # Importar pandas apenas se o CSV nativo falhar
-            import pandas as pd
-            import sys
+            if not NUMPY_PANDAS_AVAILABLE:
+                raise Exception("Não foi possível gerar o relatório. Os módulos numpy e pandas não estão disponíveis.")
+            
+            logger.info("Tentando usar pandas...")
             
             # Criar arquivo Excel na memória
             output = BytesIO()
             
             # Em ambiente Vercel ou se tivermos problema com numpy/pandas
             if is_vercel_env() or 'numpy.dtype size changed' in str(sys.exc_info()):
-                # Criar CSV via pandas (não compactado)
+                # Opção 1: CSV na memória via pandas
+                # Criar um CSV simples sem compactação
                 if dados_notas:
                     df_notas = pd.DataFrame(dados_notas)
                     df_notas.to_csv(output, index=False, encoding='utf-8')
                     output.seek(0)
-                    
                     return send_file(
                         output,
                         mimetype='text/csv',
@@ -420,13 +449,14 @@ def gerar_excel(notas, incluir_itens):
 
 def gerar_csv(notas, incluir_itens):
     """Gera arquivos CSV com os dados das notas"""
-    try:
-        import pandas as pd
-        from io import BytesIO
+    # Verificar se pandas está disponível
+    if not NUMPY_PANDAS_AVAILABLE:
+        # Usar o módulo csv nativo se pandas não estiver disponível
+        import csv
+        from io import BytesIO, StringIO
         
-        # Criar DataFrames para as notas e itens
+        # Criar DataFrames para as notas
         dados_notas = []
-        dados_itens = []
         
         for nota in notas:
             # Dados da nota
@@ -444,30 +474,64 @@ def gerar_csv(notas, incluir_itens):
                 'Forma Pagamento': nota['pagamento']['forma'],
                 'Frete': nota['frete']
             })
-            
-            # Dados dos itens (se solicitado)
-            if incluir_itens:
-                for item in nota['itens']:
-                    dados_itens.append({
-                        'Tipo Nota': nota['tipo'],
-                        'Chave Nota': nota['chave'],
-                        'Número Nota': f"{nota['numero']}/{nota['serie']}",
-                        'Número Item': item['numero'],
-                        'Código': item['codigo'],
-                        'Descrição': item['descricao'],
-                        'Valor Total': item['valor_total']
-                    })
         
-        # Criar arquivo CSV (não compactado)
+        # Gerar CSV sem compactação
         output = BytesIO()
         
         # Adicionar BOM para compatibilidade com Excel
         output.write(u'\ufeff'.encode('utf-8'))
         
+        # Criar um buffer intermediário
+        csv_buffer = StringIO()
+        
+        # Escrever dados no CSV
+        if dados_notas:
+            fieldnames = dados_notas[0].keys()
+            writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(dados_notas)
+        
+        # Converter para bytes e adicionar ao output
+        output.write(csv_buffer.getvalue().encode('utf-8'))
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name='relatorio_notas.csv'
+        )
+    else:
+        # Usar pandas se disponível
+        import pandas as pd
+        from io import BytesIO
+        
+        # Criar DataFrames para as notas
+        dados_notas = []
+        
+        for nota in notas:
+            # Dados da nota
+            dados_notas.append({
+                'Tipo': nota['tipo'],
+                'Chave': nota['chave'],
+                'Número': nota['numero'],
+                'Série': nota['serie'],
+                'Data Emissão': nota['data_emissao'],
+                'Emitente': nota['emitente']['razao_social'],
+                'CNPJ Emitente': nota['emitente']['cnpj_cpf'],
+                'Destinatário': nota['destinatario']['razao_social'],
+                'CNPJ Destinatário': nota['destinatario']['cnpj_cpf'],
+                'Valor Total': nota['valor_total'],
+                'Forma Pagamento': nota['pagamento']['forma'],
+                'Frete': nota['frete']
+            })
+        
+        # Criar CSV com pandas
+        output = BytesIO()
+        
         # Salvar dados das notas
         df_notas = pd.DataFrame(dados_notas)
-        csv_data = df_notas.to_csv(index=False).encode('utf-8')
-        output.write(csv_data)
+        df_notas.to_csv(output, index=False, encoding='utf-8')
         
         output.seek(0)
         return send_file(
@@ -476,43 +540,6 @@ def gerar_csv(notas, incluir_itens):
             as_attachment=True,
             download_name='relatorio_notas.csv'
         )
-        
-    except Exception as e:
-        # Em caso de erro, tentar formato CSV simples
-        try:
-            logger.info(f"Erro com pandas: {str(e)}. Tentando CSV nativo.")
-            import csv
-            from io import BytesIO, StringIO
-            
-            output = BytesIO()
-            
-            # Adicionar BOM para compatibilidade com Excel
-            output.write(u'\ufeff'.encode('utf-8'))
-            
-            # Criar um buffer intermediário
-            csv_buffer = StringIO()
-            
-            # Escrever dados no CSV
-            if dados_notas:
-                fieldnames = dados_notas[0].keys()
-                writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(dados_notas)
-            
-            # Converter para bytes e adicionar ao output
-            output.write(csv_buffer.getvalue().encode('utf-8'))
-            output.seek(0)
-            
-            return send_file(
-                output,
-                mimetype='text/csv',
-                as_attachment=True,
-                download_name='relatorio_notas.csv'
-            )
-        except Exception as fallback_error:
-            logger.error(f"Erro no fallback CSV: {str(fallback_error)}")
-            # Informar o usuário sobre o erro de maneira amigável
-            raise Exception(f"Não foi possível gerar o relatório. Por favor, tente novamente ou contate o suporte.")
 
 def processar_xml(filepath):
     """Processa o arquivo XML e extrai as informações relevantes"""
@@ -1298,8 +1325,4 @@ if __name__ == '__main__':
 else:
     # Garantir que a pasta uploads exista quando executado pelo Vercel
     if 'UPLOAD_FOLDER' in app.config and not os.path.exists(app.config['UPLOAD_FOLDER']):
-        os.makedirs(app.config['UPLOAD_FOLDER'])
-
-# Necessário para o Vercel sem importação circular
-# Exportando a aplicação para o ambiente do Vercel
-application = app 
+        os.makedirs(app.config['UPLOAD_FOLDER']) 

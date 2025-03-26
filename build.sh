@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Instalar setuptools primeiro (necessário para distutils)
-pip install setuptools>=65.5.0
-
 # Instalar dependências comuns
 pip install -r requirements.txt
 
