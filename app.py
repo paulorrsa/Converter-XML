@@ -1290,5 +1290,6 @@ else:
     if 'UPLOAD_FOLDER' in app.config and not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
 
-# Necessário para o Vercel
-from app import app as application 
+# Necessário para o Vercel sem importação circular
+# Exportando a aplicação para o ambiente do Vercel
+application = app 
