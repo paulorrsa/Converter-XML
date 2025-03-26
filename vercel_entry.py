@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Lista de pacotes críticos que precisamos garantir que estão instalados
 REQUIRED_PACKAGES = [
+    "setuptools>=65.5.0",
     "pandas==1.5.3",
     "numpy==1.23.5",
     "xlsxwriter==3.1.2"

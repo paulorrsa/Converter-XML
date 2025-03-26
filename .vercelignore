@@ -9,4 +9,5 @@ env/
 .gitignore
 app.py.old
 app.py.bak
-test_*.py 
+test_*.py
+app/uploads/*.pdf 
